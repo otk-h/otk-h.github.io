@@ -1,13 +1,93 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>otk_h.github.io</title>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>otk's web</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <nav class="navbar container">
+        <a class="brand" href="#home">otk's web</a>
+        <ul class="nav-links">
+          <li><a href="#about">关于</a></li>
+          <li><a href="#projects">项目</a></li>
+          <li><a href="#contact">联系</a></li>
+        </ul>
+      </nav>
+    </header>
 
-</head>
-<body>
-    <img src="/img/tmp.jpg" width="200"><br>
-    
-</body>
+    <main>
+      <section id="home" class="hero container card">
+        <h1>Hi, I'm otk</h1>
+        <a href="#projects" class="btn-primary">查看作品</a>
+      </section>
+
+      <section id="about" class="container section card">
+        <h2>关于我</h2>
+        <p>我是otk</p>
+      </section>
+
+      <section id="projects" class="container section">
+        <h2>项目展示</h2>
+        <div id="projectGrid" class="project-grid"></div>
+      </section>
+
+      <section id="skills" class="container section card">
+        <h2>技能</h2>
+        <div class="skills-grid">
+          <div class="skill-item"><span>c</span></div>
+          <div class="skill-item"><span>cpp</span></div>
+          <div class="skill-item"><span>rust</span></div>
+          <div class="skill-item"><span>java</span></div>
+          <div class="skill-item"><span>python</span></div>
+          <div class="skill-item"><span>cangjie</span></div>
+        </div>
+      </section>
+
+      <section id="blog" class="container section card blog-layout">
+        <h2>博客空间</h2>
+        <div class="blog-content">
+          <aside>
+            <div id="blogList" class="blog-list" aria-live="polite"></div>
+          </aside>
+          <article class="blog-view card-inner">
+            <h3 id="blogTitle">请选择一篇文章</h3>
+            <p id="blogMeta" class="blog-meta">将从 markdown 文件动态加载内容。</p>
+            <div id="blogBody" class="blog-body"></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="contact" class="container section card">
+        <h2>联系我</h2>
+        <p>邮箱：<a href="mailto:otk_h@outlook.com">otk_h@outlook.com</a></p>
+        <div class="social-links">
+          <a href="https://github.com/otk-h" target="_blank" rel="noopener" aria-label="GitHub">
+            <i class="fa-brands fa-github"></i>
+          </a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>© 2026 otk. All rights reserved.</p>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="script.js"></script>
+  </body>
 </html>

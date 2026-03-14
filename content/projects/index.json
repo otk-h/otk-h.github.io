@@ -1,0 +1,22 @@
+{
+  "projects": [
+    {
+      "title": "个人知识库平台",
+      "description": "支持全文检索、标签管理与跨端同步的知识管理工具。",
+      "image": "img/tmp.jpg",
+      "readme": "content/projects/knowledge-base-README.md"
+    },
+    {
+      "title": "轻量任务协作板",
+      "description": "看板式任务流转，支持多人协作与进度追踪。",
+      "image": "img/tmp.jpg",
+      "readme": "content/projects/task-board-README.md"
+    },
+    {
+      "title": "代码片段管理器",
+      "description": "用于沉淀常用代码模板和命令片段，快速检索复用。",
+      "image": "img/tmp.jpg",
+      "readme": "content/projects/snippets-README.md"
+    }
+  ]
+}
