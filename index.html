@@ -1,13 +1,71 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>otk_h.github.io</title>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>otk's web</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <nav class="navbar container">
+        <a class="brand" href="#home">otk's web</a>
+        <ul class="nav-links">
+          <li><a href="#projects">项目</a></li>
+          <li><a href="#blog">博客</a></li>
+          <li><a href="#contact">联系</a></li>
+        </ul>
+      </nav>
+    </header>
 
-</head>
-<body>
-    <img src="/img/tmp.jpg" width="200"><br>
-    
-</body>
+    <main>
+      <section id="home" class="hero container card">
+        <h1>Hi, I'm otk</h1>
+      </section>
+
+      <section id="projects" class="container section card">
+        <div class="section-head">
+          <h2>项目</h2>
+          <p>自动扫描 <code>project/</code> 目录下的 Markdown 文件。</p>
+        </div>
+        <div id="projectList" class="entry-list" aria-live="polite"></div>
+      </section>
+
+      <section id="blog" class="container section card">
+        <div class="section-head">
+          <h2>博客</h2>
+          <p>自动扫描 <code>blog/</code> 目录下的 Markdown 文件。</p>
+        </div>
+        <div id="blogList" class="entry-list" aria-live="polite"></div>
+      </section>
+
+      <section id="contact" class="container section card">
+        <h2>联系我</h2>
+        <p>邮箱：<a href="mailto:otk_h@outlook.com">otk_h@outlook.com</a></p>
+        <div class="social-links">
+          <a href="https://github.com/otk-h" target="_blank" rel="noopener" aria-label="GitHub">
+            <i class="fa-brands fa-github"></i>
+          </a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>© 2026 otk. All rights reserved.</p>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
 </html>
