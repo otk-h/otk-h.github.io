@@ -23,8 +23,8 @@
       <nav class="navbar container">
         <a class="brand" href="#home">otk's web</a>
         <ul class="nav-links">
-          <li><a href="#about">关于</a></li>
           <li><a href="#projects">项目</a></li>
+          <li><a href="#blog">博客</a></li>
           <li><a href="#contact">联系</a></li>
         </ul>
       </nav>
@@ -33,47 +33,22 @@
     <main>
       <section id="home" class="hero container card">
         <h1>Hi, I'm otk</h1>
-        <a href="#projects" class="btn-primary">查看作品</a>
       </section>
 
-      <section id="about" class="container section card">
-        <h2>关于我</h2>
-        <p>我是otk</p>
-      </section>
-
-      <section id="projects" class="container section">
-        <h2>项目展示</h2>
-        <div id="projectGrid" class="project-grid"></div>
-      </section>
-
-      <section id="skills" class="container section card">
-        <h2>技能</h2>
-        <div class="skills-grid">
-          <div class="skill-item">
-            <div class="skill-header"><i class="fa-brands fa-html5"></i><span>C</span></div>
-            <div class="progress"><span style="width: 92%"></span></div>
-          </div>
-          <div class="skill-item">
-            <div class="skill-header"><i class="fa-brands fa-css3-alt"></i><span>C++</span></div>
-            <div class="progress"><span style="width: 95%"></span></div>
-          </div>
-          <div class="skill-item">
-            <div class="skill-header"><i class="fa-brands fa-js"></i><span>Java</span></div>
-            <div class="progress"><span style="width: 85%"></span></div>
-          </div>
-          <div class="skill-item">
-            <div class="skill-header"><i class="fa-brands fa-react"></i><span>Rust</span></div>
-            <div class="progress"><span style="width: 78%"></span></div>
-          </div>
+      <section id="projects" class="container section card">
+        <div class="section-head">
+          <h2>项目</h2>
+          <p>自动扫描 <code>project/</code> 目录下的 Markdown 文件。</p>
         </div>
+        <div id="projectList" class="entry-list" aria-live="polite"></div>
       </section>
 
       <section id="blog" class="container section card">
-        <div class="blog-header">
-          <h2>博客空间</h2>
-          <button id="addPostBtn" class="btn-secondary" type="button">添加文章</button>
+        <div class="section-head">
+          <h2>博客</h2>
+          <p>自动扫描 <code>blog/</code> 目录下的 Markdown 文件。</p>
         </div>
-        <div id="blogList" class="blog-grid" aria-live="polite"></div>
+        <div id="blogList" class="entry-list" aria-live="polite"></div>
       </section>
 
       <section id="contact" class="container section card">
@@ -91,7 +66,6 @@
       <p>© 2026 otk. All rights reserved.</p>
     </footer>
 
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="script.js"></script>
   </body>
 </html>

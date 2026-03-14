@@ -1,106 +1,79 @@
+const projectList = document.getElementById("projectList");
 const blogList = document.getElementById("blogList");
-const blogTitle = document.getElementById("blogTitle");
-const blogMeta = document.getElementById("blogMeta");
-const blogBody = document.getElementById("blogBody");
-const projectGrid = document.getElementById("projectGrid");
 
-async function fetchJson(path) {
-  const response = await fetch(path);
+function safeText(text) {
+  return text
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+async function scanMarkdownFiles(directory) {
+  const response = await fetch(`./${directory}/`);
   if (!response.ok) {
-    throw new Error(`无法加载 ${path}`);
-  }
-  return response.json();
-}
-
-async function fetchText(path) {
-  const response = await fetch(path);
-  if (!response.ok) {
-    throw new Error(`无法加载 ${path}`);
-  }
-  return response.text();
-}
-
-function renderError(container, message) {
-  container.innerHTML = `<p>${message}</p>`;
-}
-
-function renderProjects(projects) {
-  if (!projects.length) {
-    renderError(projectGrid, "暂无项目内容");
-    return;
+    throw new Error(`无法读取目录: ${directory}`);
   }
 
-  projectGrid.innerHTML = projects
-    .map(
-      (project) => `
-      <article class="card project-card">
-        <img class="project-image" src="${project.image}" alt="${project.title} 项目图片" loading="lazy" />
-        <h3>${project.title}</h3>
-        <p>${project.description}</p>
-        <a href="${project.readme}" target="_blank" rel="noopener">README.md</a>
-      </article>
-    `
-    )
-    .join("");
+  const html = await response.text();
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, "text/html");
+
+  const files = [...doc.querySelectorAll('a[href$=".md"]')]
+    .map((a) => a.getAttribute("href"))
+    .filter(Boolean)
+    .map((href) => href.replace(/^\.\//, ""))
+    .filter((href) => !href.includes("../"))
+    .map((href) => `${directory}/${href}`);
+
+  return [...new Set(files)];
 }
 
-async function showBlogPost(post) {
-  const markdown = await fetchText(post.file);
-  blogTitle.textContent = post.title;
-  blogMeta.textContent = `${post.date} · ${post.category}`;
-  blogBody.innerHTML = marked.parse(markdown);
-
-  document.querySelectorAll(".blog-item").forEach((el) => {
-    el.classList.toggle("active", el.dataset.file === post.file);
-  });
-}
-
-function renderBlogList(posts) {
-  if (!posts.length) {
-    renderError(blogList, "未发现博客 markdown 文件");
-    return;
+async function extractTitle(filePath) {
+  try {
+    const response = await fetch(`./${filePath}`);
+    if (!response.ok) {
+      return filePath;
+    }
+    const text = await response.text();
+    const firstHeading = text
+      .split("\n")
+      .find((line) => line.trim().startsWith("# "))
+      ?.replace(/^#\s+/, "")
+      .trim();
+    return firstHeading || filePath.split("/").pop().replace(/\.md$/, "");
+  } catch {
+    return filePath.split("/").pop().replace(/\.md$/, "");
   }
+}
 
-  blogList.innerHTML = posts
-    .map(
-      (post) => `
-      <button class="blog-item" data-file="${post.file}">
-        <h4>${post.title}</h4>
-        <p>${post.summary}</p>
-      </button>
-    `
-    )
-    .join("");
+async function renderEntryList(container, directory, typeLabel) {
+  try {
+    const files = await scanMarkdownFiles(directory);
 
-  blogList.addEventListener("click", async (event) => {
-    const target = event.target.closest(".blog-item");
-    if (!target) {
+    if (!files.length) {
+      container.innerHTML = `<p class="empty">${typeLabel}目录当前没有 Markdown 文件。</p>`;
       return;
     }
-    const post = posts.find((item) => item.file === target.dataset.file);
-    if (post) {
-      await showBlogPost(post);
-    }
-  });
 
-  showBlogPost(posts[0]);
-}
+    const titledFiles = await Promise.all(
+      files.map(async (file) => ({ file, title: await extractTitle(file) }))
+    );
 
-async function init() {
-  try {
-    const [blogIndex, projectIndex] = await Promise.all([
-      fetchJson("content/blog/index.json"),
-      fetchJson("content/projects/index.json"),
-    ]);
-
-    renderBlogList(blogIndex.posts || []);
-    renderProjects(projectIndex.projects || []);
+    container.innerHTML = titledFiles
+      .map(
+        ({ file, title }) => `
+        <a class="entry-card" href="viewer.html?file=${encodeURIComponent(file)}" target="_blank" rel="noopener">
+          <h3>${safeText(title)}</h3>
+          <p>${safeText(file)}</p>
+        </a>
+      `
+      )
+      .join("");
   } catch (error) {
-    renderError(blogList, "博客内容加载失败，请检查 content/blog 目录。");
-    renderError(projectGrid, "项目内容加载失败，请检查 content/projects 目录。");
-    blogTitle.textContent = "加载失败";
-    blogMeta.textContent = error.message;
+    container.innerHTML = `<p class="empty">${typeLabel}加载失败：${safeText(error.message)}</p>`;
   }
 }
 
-init();
+renderEntryList(projectList, "project", "项目");
+renderEntryList(blogList, "blog", "博客");
