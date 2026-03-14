@@ -49,27 +49,31 @@
       <section id="skills" class="container section card">
         <h2>技能</h2>
         <div class="skills-grid">
-          <div class="skill-item"><span>c</span></div>
-          <div class="skill-item"><span>cpp</span></div>
-          <div class="skill-item"><span>rust</span></div>
-          <div class="skill-item"><span>java</span></div>
-          <div class="skill-item"><span>python</span></div>
-          <div class="skill-item"><span>cangjie</span></div>
+          <div class="skill-item">
+            <div class="skill-header"><i class="fa-brands fa-html5"></i><span>C</span></div>
+            <div class="progress"><span style="width: 92%"></span></div>
+          </div>
+          <div class="skill-item">
+            <div class="skill-header"><i class="fa-brands fa-css3-alt"></i><span>C++</span></div>
+            <div class="progress"><span style="width: 95%"></span></div>
+          </div>
+          <div class="skill-item">
+            <div class="skill-header"><i class="fa-brands fa-js"></i><span>Java</span></div>
+            <div class="progress"><span style="width: 85%"></span></div>
+          </div>
+          <div class="skill-item">
+            <div class="skill-header"><i class="fa-brands fa-react"></i><span>Rust</span></div>
+            <div class="progress"><span style="width: 78%"></span></div>
+          </div>
         </div>
       </section>
 
-      <section id="blog" class="container section card blog-layout">
-        <h2>博客空间</h2>
-        <div class="blog-content">
-          <aside>
-            <div id="blogList" class="blog-list" aria-live="polite"></div>
-          </aside>
-          <article class="blog-view card-inner">
-            <h3 id="blogTitle">请选择一篇文章</h3>
-            <p id="blogMeta" class="blog-meta">将从 markdown 文件动态加载内容。</p>
-            <div id="blogBody" class="blog-body"></div>
-          </article>
+      <section id="blog" class="container section card">
+        <div class="blog-header">
+          <h2>博客空间</h2>
+          <button id="addPostBtn" class="btn-secondary" type="button">添加文章</button>
         </div>
+        <div id="blogList" class="blog-grid" aria-live="polite"></div>
       </section>
 
       <section id="contact" class="container section card">
