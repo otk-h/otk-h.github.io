@@ -1,100 +1,106 @@
 const blogList = document.getElementById("blogList");
-const addPostBtn = document.getElementById("addPostBtn");
-const postDialog = document.getElementById("postDialog");
-const cancelBtn = document.getElementById("cancelBtn");
-const postForm = document.getElementById("postForm");
-const postTitle = document.getElementById("postTitle");
-const postDesc = document.getElementById("postDesc");
-const dialogTitle = document.getElementById("dialogTitle");
+const blogTitle = document.getElementById("blogTitle");
+const blogMeta = document.getElementById("blogMeta");
+const blogBody = document.getElementById("blogBody");
+const projectGrid = document.getElementById("projectGrid");
 
-let posts = [
-  { id: 1, title: "前端性能优化笔记", desc: "记录关键渲染路径优化、图片懒加载与资源压缩实践。" },
-  { id: 2, title: "设计系统搭建心得", desc: "从色彩、排版到组件规范，沉淀可复用设计语言。" },
-];
-let editingId = null;
+async function fetchJson(path) {
+  const response = await fetch(path);
+  if (!response.ok) {
+    throw new Error(`无法加载 ${path}`);
+  }
+  return response.json();
+}
 
-function renderPosts() {
-  if (!posts.length) {
-    blogList.innerHTML = '<p>暂无博客文章，点击“添加文章”开始创作吧。</p>';
+async function fetchText(path) {
+  const response = await fetch(path);
+  if (!response.ok) {
+    throw new Error(`无法加载 ${path}`);
+  }
+  return response.text();
+}
+
+function renderError(container, message) {
+  container.innerHTML = `<p>${message}</p>`;
+}
+
+function renderProjects(projects) {
+  if (!projects.length) {
+    renderError(projectGrid, "暂无项目内容");
     return;
   }
 
-  blogList.innerHTML = posts
+  projectGrid.innerHTML = projects
     .map(
-      (post) => `
-      <article class="blog-card">
-        <h3>${post.title}</h3>
-        <p>${post.desc}</p>
-        <div class="blog-actions">
-          <button type="button" class="blog-action-btn" data-action="edit" data-id="${post.id}">编辑</button>
-          <button type="button" class="blog-action-btn" data-action="delete" data-id="${post.id}">删除</button>
-        </div>
+      (project) => `
+      <article class="card project-card">
+        <img class="project-image" src="${project.image}" alt="${project.title} 项目图片" loading="lazy" />
+        <h3>${project.title}</h3>
+        <p>${project.description}</p>
+        <a href="${project.readme}" target="_blank" rel="noopener">README.md</a>
       </article>
     `
     )
     .join("");
 }
 
-function openDialog(mode, post) {
-  editingId = mode === "edit" ? post.id : null;
-  dialogTitle.textContent = mode === "edit" ? "编辑文章" : "添加文章";
-  postTitle.value = post?.title || "";
-  postDesc.value = post?.desc || "";
-  postDialog.showModal();
+async function showBlogPost(post) {
+  const markdown = await fetchText(post.file);
+  blogTitle.textContent = post.title;
+  blogMeta.textContent = `${post.date} · ${post.category}`;
+  blogBody.innerHTML = marked.parse(markdown);
+
+  document.querySelectorAll(".blog-item").forEach((el) => {
+    el.classList.toggle("active", el.dataset.file === post.file);
+  });
 }
 
-addPostBtn.addEventListener("click", () => openDialog("add"));
-cancelBtn.addEventListener("click", () => {
-  postForm.reset();
-  postDialog.close();
-});
-
-postForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-
-  const payload = {
-    title: postTitle.value.trim(),
-    desc: postDesc.value.trim(),
-  };
-
-  if (!payload.title || !payload.desc) {
+function renderBlogList(posts) {
+  if (!posts.length) {
+    renderError(blogList, "未发现博客 markdown 文件");
     return;
   }
 
-  if (editingId) {
-    posts = posts.map((post) => (post.id === editingId ? { ...post, ...payload } : post));
-  } else {
-    posts = [{ id: Date.now(), ...payload }, ...posts];
-  }
+  blogList.innerHTML = posts
+    .map(
+      (post) => `
+      <button class="blog-item" data-file="${post.file}">
+        <h4>${post.title}</h4>
+        <p>${post.summary}</p>
+      </button>
+    `
+    )
+    .join("");
 
-  postForm.reset();
-  postDialog.close();
-  renderPosts();
-});
-
-blogList.addEventListener("click", (event) => {
-  const target = event.target;
-  if (!(target instanceof HTMLElement)) {
-    return;
-  }
-
-  const { action, id } = target.dataset;
-  if (!action || !id) {
-    return;
-  }
-
-  const postId = Number(id);
-  if (action === "delete") {
-    posts = posts.filter((post) => post.id !== postId);
-    renderPosts();
-  }
-
-  if (action === "edit") {
-    const post = posts.find((item) => item.id === postId);
-    if (post) {
-      openDialog("edit", post);
+  blogList.addEventListener("click", async (event) => {
+    const target = event.target.closest(".blog-item");
+    if (!target) {
+      return;
     }
-  }
-});
+    const post = posts.find((item) => item.file === target.dataset.file);
+    if (post) {
+      await showBlogPost(post);
+    }
+  });
 
-renderPosts();
+  showBlogPost(posts[0]);
+}
+
+async function init() {
+  try {
+    const [blogIndex, projectIndex] = await Promise.all([
+      fetchJson("content/blog/index.json"),
+      fetchJson("content/projects/index.json"),
+    ]);
+
+    renderBlogList(blogIndex.posts || []);
+    renderProjects(projectIndex.projects || []);
+  } catch (error) {
+    renderError(blogList, "博客内容加载失败，请检查 content/blog 目录。");
+    renderError(projectGrid, "项目内容加载失败，请检查 content/projects 目录。");
+    blogTitle.textContent = "加载失败";
+    blogMeta.textContent = error.message;
+  }
+}
+
+init();

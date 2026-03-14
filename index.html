@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>个人简历作品集</title>
+    <title>otk's web</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -21,7 +21,7 @@
   <body>
     <header class="site-header">
       <nav class="navbar container">
-        <a class="brand" href="#home">MyPortfolio</a>
+        <a class="brand" href="#home">otk's web</a>
         <ul class="nav-links">
           <li><a href="#about">关于</a></li>
           <li><a href="#projects">项目</a></li>
@@ -32,61 +32,37 @@
 
     <main>
       <section id="home" class="hero container card">
-        <p class="eyebrow">个人简介</p>
-        <h1>Hi, I'm Alex Chen</h1>
-        <p class="subtitle">前端开发 & 设计师</p>
+        <h1>Hi, I'm otk</h1>
         <a href="#projects" class="btn-primary">查看作品</a>
       </section>
 
       <section id="about" class="container section card">
         <h2>关于我</h2>
-        <p>
-          我是一名专注用户体验与交互细节的前端开发者，擅长将设计稿转化为高质量、可维护的网页应用。
-          热爱探索现代 Web 技术，也乐于通过设计思维提升产品价值。
-        </p>
+        <p>我是otk</p>
       </section>
 
       <section id="projects" class="container section">
         <h2>项目展示</h2>
-        <div class="project-grid">
-          <article class="card project-card">
-            <div class="project-image" aria-label="项目图片占位"></div>
-            <h3>项目一：企业官网重构</h3>
-            <p>基于响应式设计优化页面结构，提升移动端访问体验与加载性能。</p>
-            <a href="#">查看详情</a>
-          </article>
-          <article class="card project-card">
-            <div class="project-image" aria-label="项目图片占位"></div>
-            <h3>项目二：数据可视化面板</h3>
-            <p>使用图表组件与模块化布局打造实时监控仪表盘，信息层次清晰。</p>
-            <a href="#">查看详情</a>
-          </article>
-          <article class="card project-card">
-            <div class="project-image" aria-label="项目图片占位"></div>
-            <h3>项目三：电商活动页面</h3>
-            <p>实现动画交互与组件复用，保障活动期间高并发场景下页面稳定。</p>
-            <a href="#">查看详情</a>
-          </article>
-        </div>
+        <div id="projectGrid" class="project-grid"></div>
       </section>
 
       <section id="skills" class="container section card">
         <h2>技能</h2>
         <div class="skills-grid">
           <div class="skill-item">
-            <div class="skill-header"><i class="fa-brands fa-html5"></i><span>HTML</span></div>
+            <div class="skill-header"><i class="fa-brands fa-html5"></i><span>C</span></div>
             <div class="progress"><span style="width: 92%"></span></div>
           </div>
           <div class="skill-item">
-            <div class="skill-header"><i class="fa-brands fa-css3-alt"></i><span>CSS</span></div>
-            <div class="progress"><span style="width: 88%"></span></div>
+            <div class="skill-header"><i class="fa-brands fa-css3-alt"></i><span>C++</span></div>
+            <div class="progress"><span style="width: 95%"></span></div>
           </div>
           <div class="skill-item">
-            <div class="skill-header"><i class="fa-brands fa-js"></i><span>JavaScript</span></div>
+            <div class="skill-header"><i class="fa-brands fa-js"></i><span>Java</span></div>
             <div class="progress"><span style="width: 85%"></span></div>
           </div>
           <div class="skill-item">
-            <div class="skill-header"><i class="fa-brands fa-react"></i><span>React</span></div>
+            <div class="skill-header"><i class="fa-brands fa-react"></i><span>Rust</span></div>
             <div class="progress"><span style="width: 78%"></span></div>
           </div>
         </div>
@@ -102,35 +78,20 @@
 
       <section id="contact" class="container section card">
         <h2>联系我</h2>
-        <p>邮箱：<a href="mailto:hello@example.com">hello@example.com</a></p>
+        <p>邮箱：<a href="mailto:otk_h@outlook.com">otk_h@outlook.com</a></p>
         <div class="social-links">
-          <a href="#" aria-label="GitHub"><i class="fa-brands fa-github"></i></a>
+          <a href="https://github.com/otk-h" target="_blank" rel="noopener" aria-label="GitHub">
+            <i class="fa-brands fa-github"></i>
+          </a>
         </div>
       </section>
     </main>
 
     <footer class="site-footer">
-      <p>© 2026 Alex Chen. All rights reserved.</p>
+      <p>© 2026 otk. All rights reserved.</p>
     </footer>
 
-    <dialog id="postDialog" class="post-dialog">
-      <form id="postForm" method="dialog">
-        <h3 id="dialogTitle">添加文章</h3>
-        <label>
-          标题
-          <input id="postTitle" name="title" type="text" required maxlength="60" />
-        </label>
-        <label>
-          摘要
-          <textarea id="postDesc" name="desc" rows="4" required maxlength="180"></textarea>
-        </label>
-        <menu>
-          <button type="button" id="cancelBtn" class="btn-ghost">取消</button>
-          <button type="submit" class="btn-primary">保存</button>
-        </menu>
-      </form>
-    </dialog>
-
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="script.js"></script>
   </body>
 </html>
