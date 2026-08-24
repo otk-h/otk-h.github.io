@@ -23,12 +23,12 @@
 
   function geometry() {
     const mobile = width < 760;
-    const radius = Math.min(width, height) * (mobile ? 0.155 : 0.215);
+    const radius = Math.min(width, height) * (mobile ? 0.18 : 0.24);
     return {
       x: width * (mobile ? 0.61 : 0.66) + pointer.x * 0.018,
       y: height * (mobile ? 0.45 : 0.51) + pointer.y * 0.014,
       radius,
-      outer: radius * 2.75,
+      outer: radius * 3.35,
       tilt: mobile ? 0.34 : 0.285,
       rotation: -0.075 + pointer.x / Math.max(width, 1) * 0.045,
     };
@@ -57,13 +57,33 @@
   }
 
   function paintDisk(hole, time, front) {
-    const count = width < 760 ? 440 : 760;
+    const count = width < 760 ? 720 : 1180;
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
 
+    {
+      ctx.translate(hole.x, hole.y);
+      ctx.rotate(hole.rotation);
+      const coreGlow = ctx.createLinearGradient(-hole.outer, 0, hole.outer, 0);
+      coreGlow.addColorStop(0, "rgba(99,207,216,0)");
+      coreGlow.addColorStop(0.2, "rgba(99,207,216,.18)");
+      coreGlow.addColorStop(0.42, "rgba(241,245,220,.44)");
+      coreGlow.addColorStop(0.5, "rgba(255,112,82,.72)");
+      coreGlow.addColorStop(0.58, "rgba(241,245,220,.44)");
+      coreGlow.addColorStop(0.8, "rgba(99,207,216,.18)");
+      coreGlow.addColorStop(1, "rgba(99,207,216,0)");
+      ctx.strokeStyle = coreGlow;
+      ctx.lineWidth = hole.radius * 0.16;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, hole.radius * 2.25, hole.radius * 0.31, 0, front ? 0 : Math.PI, front ? Math.PI : Math.PI * 2);
+      ctx.stroke();
+      ctx.rotate(-hole.rotation);
+      ctx.translate(-hole.x, -hole.y);
+    }
+
     for (let i = 0; i < count; i += 1) {
-      const band = Math.pow(hash(i * 8.31 + 4), 1.65);
-      const radius = hole.radius * (1.18 + band * 1.72);
+      const band = Math.pow(hash(i * 8.31 + 4), 1.42);
+      const radius = hole.radius * (1.08 + band * 2.24);
       const speed = 0.42 / Math.pow(radius / hole.radius, 1.35);
       const angle = hash(i * 4.17 + 12) * Math.PI * 2 + time * speed;
       const point = ellipsePoint(hole, radius, angle);
@@ -71,18 +91,18 @@
 
       const heat = 1 - band;
       const energy = activeSignal ? 1.35 : 1;
-      const alpha = (0.08 + heat * 0.48) * energy;
+      const alpha = (0.1 + heat * 0.62) * energy;
       const red = Math.round(99 + heat * 140);
       const green = Math.round(180 + heat * 56);
       const blue = Math.round(190 + heat * 46);
-      const length = (1.2 + heat * 7.5) * (width < 760 ? 0.65 : 1);
+      const length = (1.8 + heat * 12) * (width < 760 ? 0.7 : 1);
       const next = ellipsePoint(hole, radius, angle + 0.012 + heat * 0.012);
 
       ctx.beginPath();
       ctx.moveTo(point.x, point.y);
       ctx.lineTo(point.x + (next.x - point.x) * length, point.y + (next.y - point.y) * length);
       ctx.strokeStyle = `rgba(${red},${green},${blue},${Math.min(alpha, 0.86)})`;
-      ctx.lineWidth = 0.35 + heat * 1.15;
+      ctx.lineWidth = 0.45 + heat * 1.65;
       ctx.stroke();
     }
     ctx.restore();
@@ -102,12 +122,12 @@
     ctx.fillStyle = halo;
     ctx.fillRect(-hole.outer, -hole.outer, hole.outer * 2, hole.outer * 2);
 
-    for (let i = 0; i < 5; i += 1) {
+    for (let i = 0; i < 8; i += 1) {
       const pulse = Math.sin(time * 0.22 + i) * 0.012;
       ctx.beginPath();
-      ctx.ellipse(0, 0, hole.radius * (1.02 + i * 0.045 + pulse), hole.radius * (1.01 + i * 0.02), 0, Math.PI * 1.08, Math.PI * 1.92);
-      ctx.strokeStyle = `rgba(129,225,232,${0.22 - i * 0.03})`;
-      ctx.lineWidth = i === 0 ? 1.3 : 0.55;
+      ctx.ellipse(0, 0, hole.radius * (1.04 + i * 0.085 + pulse), hole.radius * (1.01 + i * 0.04), 0, Math.PI * 1.04, Math.PI * 1.96);
+      ctx.strokeStyle = `rgba(129,225,232,${0.3 - i * 0.027})`;
+      ctx.lineWidth = i === 0 ? 1.8 : 0.7;
       ctx.stroke();
     }
     ctx.restore();
@@ -143,8 +163,8 @@
   }
 
   function paintJets(hole) {
-    const strength = 0.09 + burst * 0.13;
-    const length = hole.outer * (1.5 + burst * 0.2);
+    const strength = 0.14 + burst * 0.2;
+    const length = hole.outer * (2.05 + burst * 0.35);
     ctx.save();
     ctx.translate(hole.x, hole.y);
     ctx.rotate(hole.rotation);
@@ -157,9 +177,9 @@
     ctx.fillStyle = gradient;
     ctx.beginPath();
     ctx.moveTo(-2, -length);
-    ctx.lineTo(hole.radius * 0.08, 0);
+    ctx.lineTo(hole.radius * 0.12, 0);
     ctx.lineTo(2, length);
-    ctx.lineTo(-hole.radius * 0.08, 0);
+    ctx.lineTo(-hole.radius * 0.12, 0);
     ctx.closePath();
     ctx.fill();
     ctx.restore();
