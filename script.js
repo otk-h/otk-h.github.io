@@ -2,7 +2,7 @@
   const canvas = document.querySelector("#signal");
   if (!canvas) return;
 
-  const ctx = canvas.getContext("2d", { alpha: true });
+  let ctx = canvas.getContext("2d", { alpha: true });
   if (!ctx) return;
 
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -14,7 +14,12 @@
   let frame = 0;
   let activeSignal = "";
   let previousTime = performance.now();
+  let previousFrameTime = 0;
   let simulationTime = 3.8;
+  let renderedFrames = 0;
+  let renderScale = 0.9;
+  let averageFrameCost = 0;
+  let layersDirty = true;
   const settings = { angle: 0.29, speed: 1, density: 1 };
   const isLab = document.body.classList.contains("lab");
 
@@ -38,12 +43,38 @@
 
   // Render an art-directed rear-disk lens image, not a general-relativity simulation.
   const emission = document.createElement("canvas");
-  const glowContext = emission.getContext("2d");
+  const archLayer = document.createElement("canvas");
+  const starLayer = document.createElement("canvas");
+  const bloomLayer = document.createElement("canvas");
+  const emissionContext = emission.getContext("2d", { alpha: true });
+  const archContext = archLayer.getContext("2d", { alpha: true });
+  const starContext = starLayer.getContext("2d", { alpha: true });
+  const bloomContext = bloomLayer.getContext("2d", { alpha: true });
   const seeds = Array.from({ length: 1500 }, (_, i) => ({
     band: hash(i * 8.31 + 4),
     phase: hash(i * 3.7) * Math.PI * 2,
     weight: hash(i * 5.9 + 2),
   }));
+
+  function withContext(nextContext, callback) {
+    const previousContext = ctx;
+    ctx = nextContext;
+    callback();
+    ctx = previousContext;
+  }
+
+  function sizeLayer(layer, scale) {
+    layer.width = Math.max(1, Math.round(width * scale));
+    layer.height = Math.max(1, Math.round(height * scale));
+    layer.getContext("2d")?.setTransform(scale, 0, 0, scale, 0, 0);
+  }
+
+  function clearLayer(layerContext) {
+    layerContext.save();
+    layerContext.setTransform(1, 0, 0, 1, 0, 0);
+    layerContext.clearRect(0, 0, layerContext.canvas.width, layerContext.canvas.height);
+    layerContext.restore();
+  }
 
   function paintStars(hole, time) {
     for (let i = 0; i < 160; i += 1) {
@@ -105,8 +136,8 @@
         return { x, y };
       };
       ctx.beginPath();
-      for (let j = 0; j <= 144; j += 1) {
-        const { x, y } = pointAt(j / 144 * Math.PI);
+      for (let j = 0; j <= 96; j += 1) {
+        const { x, y } = pointAt(j / 96 * Math.PI);
         if (j === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
       }
       const warmth = band * band;
@@ -129,8 +160,8 @@
         const angle = orbit + knot * Math.PI * 2 / 3;
         ctx.beginPath();
         let drawing = false;
-        for (let step = 0; step <= 10; step += 1) {
-          const t = angle + step / 10 * (0.055 + seed.weight * 0.09);
+        for (let step = 0; step <= 7; step += 1) {
+          const t = angle + step / 7 * (0.055 + seed.weight * 0.09);
           if ((Math.sin(t) >= 0 ? 1 : -1) !== side) { drawing = false; continue; }
           const phase = Math.acos(-Math.cos(t));
           const { x, y } = pointAt(phase);
@@ -173,8 +204,8 @@
       // Curved short streaks follow the same disk projection at every point.
       ctx.beginPath();
       let drawing = false;
-      for (let j = 0; j <= 12; j += 1) {
-        const t = angle + j / 12 * (0.12 + seed.weight * 0.32);
+      for (let j = 0; j <= 8; j += 1) {
+        const t = angle + j / 8 * (0.12 + seed.weight * 0.32);
         if ((Math.sin(t) >= 0) !== front) { drawing = false; continue; }
         const r = radius * (1 + 0.002 * Math.sin(t * 13 - time * 0.7 + seed.phase));
         const x = Math.cos(t) * r;
@@ -209,33 +240,69 @@
     ctx.restore();
   }
 
+  function updateStars(hole, time) {
+    if (!starContext) return;
+    clearLayer(starContext);
+    withContext(starContext, () => paintStars(hole, time));
+  }
+
+  function updateArch(hole, time) {
+    if (!archContext) return;
+    clearLayer(archContext);
+    withContext(archContext, () => {
+      paintArch(hole, time, -1);
+      paintArch(hole, time, 1);
+    });
+  }
+
+  function updateBloom(hole) {
+    if (!bloomContext) return;
+    const scale = bloomLayer.width / Math.max(width, 1);
+    bloomContext.save();
+    bloomContext.setTransform(1, 0, 0, 1, 0, 0);
+    bloomContext.clearRect(0, 0, bloomLayer.width, bloomLayer.height);
+    bloomContext.globalCompositeOperation = "screen";
+    for (const [blur, alpha] of [[hole.radius * 0.22, 0.55], [hole.radius * 0.065, 0.65], [2, 0.22]]) {
+      bloomContext.filter = `blur(${Math.max(1, blur * scale)}px)`;
+      bloomContext.globalAlpha = alpha * (activeSignal ? 1.15 : 1);
+      bloomContext.drawImage(emission, 0, 0, bloomLayer.width, bloomLayer.height);
+    }
+    bloomContext.restore();
+  }
+
   function paintBlackHole(hole, time) {
-    if (!glowContext) return;
+    if (!emissionContext || !archContext || !starContext || !bloomContext) return;
+    if (layersDirty || renderedFrames % 3 === 0) updateArch(hole, time);
+    if (layersDirty || renderedFrames % 12 === 0) updateStars(hole, time);
+
+    clearLayer(emissionContext);
+    withContext(emissionContext, () => {
+      paintDisk(hole, time, false);
+      ctx.drawImage(archLayer, 0, 0, archLayer.width, archLayer.height, 0, 0, width, height);
+      paintHorizon(hole);
+      paintDisk(hole, time, true);
+    });
+    if (layersDirty || renderedFrames % 3 === 0) updateBloom(hole);
+
     ctx.clearRect(0, 0, width, height);
-    paintDisk(hole, time, false);
-    paintArch(hole, time, -1);
-    paintArch(hole, time, 1);
-    paintHorizon(hole);
-    paintDisk(hole, time, true);
-    glowContext.clearRect(0, 0, emission.width, emission.height);
-    glowContext.drawImage(canvas, 0, 0, emission.width, emission.height);
-    ctx.clearRect(0, 0, width, height);
-    paintStars(hole, time);
+    ctx.drawImage(starLayer, 0, 0, starLayer.width, starLayer.height, 0, 0, width, height);
     ctx.drawImage(emission, 0, 0, width, height);
     ctx.save();
     ctx.globalCompositeOperation = "screen";
-    // Broad optical scatter, followed by a tighter bloom around hot gas.
-    for (const [blur, alpha] of [[hole.radius * 0.22, 0.55], [hole.radius * 0.065, 0.65], [2, 0.22]]) {
-      ctx.filter = `blur(${blur}px)`;
-      ctx.globalAlpha = alpha * (activeSignal ? 1.15 : 1);
-      ctx.drawImage(emission, 0, 0, width, height);
-    }
+    ctx.drawImage(bloomLayer, 0, 0, bloomLayer.width, bloomLayer.height, 0, 0, width, height);
     ctx.restore();
+    layersDirty = false;
   }
 
   function draw(now, once = false) {
+    if (!once && now - previousFrameTime < 1000 / 30) {
+      frame = requestAnimationFrame(draw);
+      return;
+    }
+    const renderStarted = performance.now();
     const elapsed = Math.min(Math.max((now - previousTime) / 1000, 0), 0.05);
     previousTime = now;
+    previousFrameTime = now;
     if (!reducedMotion.matches) simulationTime += elapsed * settings.speed;
     const time = reducedMotion.matches ? 3.8 : simulationTime;
     pointer.x += (pointer.targetX - pointer.x) * 0.032;
@@ -244,19 +311,34 @@
 
     ctx.clearRect(0, 0, width, height);
     paintBlackHole(hole, time);
+    renderedFrames += 1;
+
+    const cost = performance.now() - renderStarted;
+    averageFrameCost = averageFrameCost ? averageFrameCost * 0.94 + cost * 0.06 : cost;
+    if (renderedFrames % 120 === 0 && averageFrameCost > 25 && renderScale > 0.72) {
+      renderScale = Math.max(0.72, renderScale - 0.09);
+      resizeLayers();
+    }
 
     if (!once && !reducedMotion.matches && !document.hidden) frame = requestAnimationFrame(draw);
   }
 
+  function resizeLayers() {
+    sizeLayer(emission, renderScale);
+    sizeLayer(archLayer, renderScale);
+    sizeLayer(starLayer, Math.min(1, renderScale));
+    sizeLayer(bloomLayer, 0.38);
+    layersDirty = true;
+  }
+
   function resize() {
-    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    dpr = Math.min(window.devicePixelRatio || 1, 1.5);
     width = canvas.clientWidth;
     height = canvas.clientHeight;
     canvas.width = Math.round(width * dpr);
     canvas.height = Math.round(height * dpr);
-    emission.width = Math.round(width);
-    emission.height = Math.round(height);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    resizeLayers();
     draw(performance.now(), true);
   }
 
@@ -271,6 +353,7 @@
   window.addEventListener("pointermove", (event) => {
     pointer.targetX = event.clientX - width / 2;
     pointer.targetY = event.clientY - height / 2;
+    if (reducedMotion.matches) draw(performance.now(), true);
   }, { passive: true });
   document.addEventListener("visibilitychange", startLoop);
   reducedMotion.addEventListener?.("change", startLoop);
@@ -284,6 +367,7 @@
         settings[key] = Number(input.value);
         document.getElementById(`${key}-value`).value = settings[key].toFixed(2);
       }
+      layersDirty = true;
       if (reducedMotion.matches) draw(performance.now(), true);
     };
     controls.addEventListener("input", sync);
