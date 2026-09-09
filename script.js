@@ -15,11 +15,8 @@
   let activeSignal = "";
   let previousTime = performance.now();
   let simulationTime = 3.8;
-  let slow = false;
-  let timeScale = 1;
   const settings = { angle: 0.29, speed: 1, density: 1 };
   const isLab = document.body.classList.contains("lab");
-  const observe = document.querySelector(".observe");
 
   const hash = (value) => {
     const x = Math.sin(value * 127.1) * 43758.5453;
@@ -28,177 +25,225 @@
 
   function geometry() {
     const mobile = width < 760;
-    const radius = Math.min(width, height) * (mobile ? 0.18 : 0.24);
+    const radius = Math.min(width, height) * (mobile ? 0.19 : 0.175);
     return {
-      x: width * (mobile ? 0.61 : 0.66) + pointer.x * 0.018,
+      x: width * (mobile ? 0.5 : isLab ? 0.55 : 0.66) + pointer.x * 0.018,
       y: height * (mobile ? 0.45 : 0.51) + pointer.y * 0.014,
       radius,
-      outer: radius * 3.35,
-      tilt: settings.angle * 0.55,
-      rotation: -0.075 + pointer.x / Math.max(width, 1) * 0.045,
+      outer: radius * (mobile ? 2.6 : 3.25),
+      tilt: Math.min(0.88, Math.max(0.012, 0.008 + 2 * Math.pow(settings.angle, 3) + (isLab ? 0 : -pointer.y / Math.max(height, 1) * 0.65))),
+      rotation: -0.035 + pointer.x / Math.max(width, 1) * 0.025,
     };
   }
 
-  function ellipsePoint(hole, radius, angle) {
-    const localX = Math.cos(angle) * radius;
-    const localY = Math.sin(angle) * radius * hole.tilt;
-    const cos = Math.cos(hole.rotation);
-    const sin = Math.sin(hole.rotation);
-    return {
-      x: hole.x + localX * cos - localY * sin,
-      y: hole.y + localX * sin + localY * cos,
-      depth: Math.sin(angle),
-    };
-  }
+  // Render an art-directed rear-disk lens image, not a general-relativity simulation.
+  const emission = document.createElement("canvas");
+  const glowContext = emission.getContext("2d");
+  const seeds = Array.from({ length: 1500 }, (_, i) => ({
+    band: hash(i * 8.31 + 4),
+    phase: hash(i * 3.7) * Math.PI * 2,
+    weight: hash(i * 5.9 + 2),
+  }));
 
-  function paintStars(time) {
-    for (let i = 0; i < 95; i += 1) {
-      const x = hash(i + 2) * width;
-      const y = hash(i * 3.73 + 9) * height;
-      const flicker = 0.18 + 0.28 * Math.sin(time * 0.7 + i * 2.1);
-      ctx.fillStyle = `rgba(183,214,221,${Math.max(0.05, flicker)})`;
-      ctx.fillRect(x, y, i % 13 === 0 ? 1.4 : 0.65, i % 13 === 0 ? 1.4 : 0.65);
+  function paintStars(hole, time) {
+    for (let i = 0; i < 160; i += 1) {
+      let x = hash(i + 2) * width;
+      let y = hash(i * 3.73 + 9) * height;
+      const dx = x - hole.x, dy = y - hole.y;
+      const distance = Math.hypot(dx, dy);
+      if (distance < hole.radius * 1.04) continue;
+      // Gentle radial deflection and tangential elongation near the photon ring.
+      const bend = Math.exp(-Math.pow((distance / hole.radius - 1.2) / 0.65, 2));
+      x += dx * bend * 0.06;
+      y += dy * bend * 0.06;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(Math.atan2(dy, dx) + Math.PI / 2);
+      ctx.fillStyle = `rgba(180,198,209,${0.08 + hash(i + 23) * 0.24 + Math.sin(time * 0.15 + i) * 0.025})`;
+      ctx.fillRect(0, 0, 0.6 + bend * 3, 0.65);
+      ctx.restore();
     }
   }
 
-  function paintDisk(hole, time, front) {
-    const count = Math.round((width < 760 ? 720 : 1180) * settings.density);
-    ctx.save();
-    ctx.globalCompositeOperation = "lighter";
-
-    {
-      ctx.translate(hole.x, hole.y);
-      ctx.rotate(hole.rotation);
-      const coreGlow = ctx.createLinearGradient(-hole.outer, 0, hole.outer, 0);
-      coreGlow.addColorStop(0, "rgba(99,207,216,0)");
-      coreGlow.addColorStop(0.2, "rgba(219,133,48,.18)");
-      coreGlow.addColorStop(0.42, "rgba(241,245,220,.44)");
-      coreGlow.addColorStop(0.5, "rgba(255,225,170,.72)");
-      coreGlow.addColorStop(0.58, "rgba(241,245,220,.44)");
-      coreGlow.addColorStop(0.8, "rgba(219,133,48,.18)");
-      coreGlow.addColorStop(1, "rgba(99,207,216,0)");
-      ctx.strokeStyle = coreGlow;
-      ctx.globalAlpha = 0.23;
-      ctx.lineWidth = hole.radius * 0.1;
-      ctx.beginPath();
-      ctx.ellipse(0, 0, hole.radius * 2.25, hole.radius * 2.25 * hole.tilt, 0, front ? 0 : Math.PI, front ? Math.PI : Math.PI * 2);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-      ctx.rotate(-hole.rotation);
-      ctx.translate(-hole.x, -hole.y);
-    }
-
-    for (let i = 0; i < count; i += 1) {
-      const band = Math.pow(hash(i * 8.31 + 4), 1.42);
-      const radius = hole.radius * (1.08 + band * 2.24 + 0.025 * Math.sin(time * 0.6 + i * 1.9));
-      const speed = 0.42 / Math.pow(radius / hole.radius, 1.35);
-      const angle = hash(i * 4.17 + 12) * Math.PI * 2 + time * speed;
-      const point = ellipsePoint(hole, radius, angle);
-      if ((point.depth >= 0) !== front) continue;
-
-      const heat = 1 - band;
-      const energy = activeSignal ? 1.35 : 1;
-      const alpha = (0.1 + heat * 0.62) * energy * (0.7 + 0.3 * Math.cos(angle)) * (0.8 + 0.2 * Math.sin(i * 2.4 + time));
-      const red = 255;
-      const green = Math.round(128 + heat * 115);
-      const blue = Math.round(45 + heat * 163);
-      const length = (1.8 + heat * 12) * (width < 760 ? 0.7 : 1);
-      const next = ellipsePoint(hole, radius, angle + 0.012 + heat * 0.012);
-
-      ctx.beginPath();
-      ctx.moveTo(point.x, point.y);
-      ctx.lineTo(point.x + (next.x - point.x) * length, point.y + (next.y - point.y) * length);
-      ctx.strokeStyle = `rgba(${red},${green},${blue},${Math.min(alpha, 0.86)})`;
-      ctx.lineWidth = 0.45 + heat * 1.65;
-      ctx.stroke();
-    }
-    ctx.restore();
+  function archHeight(x, radius) {
+    const ax = Math.abs(x);
+    const join = radius * 0.87;
+    if (ax <= join) return Math.sqrt(radius * radius - x * x);
+    const height = Math.sqrt(radius * radius - join * join);
+    // Match the circle's slope into a smooth shoulder that lands in the disk.
+    const falloff = height * height / join;
+    return height * Math.exp(-(ax - join) / falloff);
   }
 
-  function paintLens(hole, time) {
+  function paintArch(hole, time, side) {
     ctx.save();
     ctx.translate(hole.x, hole.y);
     ctx.rotate(hole.rotation);
     ctx.globalCompositeOperation = "lighter";
-
-    const halo = ctx.createRadialGradient(0, 0, hole.radius * 0.72, 0, 0, hole.outer);
-    halo.addColorStop(0, "rgba(0,0,0,0)");
-    halo.addColorStop(0.22, "rgba(255,183,89,.15)");
-    halo.addColorStop(0.48, "rgba(155,85,30,.055)");
-    halo.addColorStop(1, "rgba(5,7,10,0)");
-    ctx.fillStyle = halo;
-    ctx.fillRect(-hole.outer, -hole.outer, hole.outer * 2, hole.outer * 2);
-
-    // Distorted rear-disk images: broad upper arch and compressed lower echo.
-    // Short curved strands create texture without a solid white tube.
-    for (const side of [-1, 1]) {
-      for (let band = 0; band < 38; band += 1) {
-        const spread = band / 37;
-        for (let segment = 0; segment < 28; segment += 1) {
-          const angle = segment / 28 * Math.PI;
-          const heat = 1 - spread;
-          const shimmer = 0.65 + 0.35 * Math.sin(segment * 1.7 + band * 0.9 - time * 0.8);
-          ctx.beginPath();
-          for (let step = 0; step <= 4; step += 1) {
-            const a = angle + step / 4 * Math.PI / 28 * 0.95;
-            const x = Math.cos(a) * hole.radius * (1.24 + spread * 0.75);
-            const y = side * Math.sin(a) * hole.radius * (side < 0 ? 1.23 + spread * 0.47 : 1.16 + spread * 0.2);
-            if (step === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-          }
-          ctx.strokeStyle = `rgba(255,${Math.round(155 + heat * 90)},${Math.round(65 + heat * 145)},${(0.12 + heat * 0.36) * shimmer * (side < 0 ? 1 : 0.52)})`;
-          ctx.lineWidth = Math.max(0.7, hole.radius * 0.011);
-          ctx.stroke();
+    // Overlapping soft strands fill the band, with no segmented angular grid.
+    const count = 210;
+    for (let i = 0; i < count; i += 1) {
+      const seed = seeds[i];
+      const band = seed.band;
+      const radius = hole.radius * (1.008 + band * (side < 0 ? 0.542 : 0.452));
+      const diskRadius = hole.radius * (1.18 + band * (hole.outer / hole.radius - 1.18));
+      const inclinationBlend = Math.min(1, hole.tilt / 0.7);
+      const envelope = Math.pow(Math.sin(Math.PI * band), 0.45);
+      const heat = 1 - band;
+      const pointAt = (phase) => {
+        const x = -Math.cos(phase) * diskRadius;
+        const projectedHeight = Math.sin(phase) * diskRadius * hole.tilt;
+        // Smoothly join the lensed image to the very same projected disk orbit.
+        // The envelope and its derivative vanish at both ends: no detached shoulders.
+        const envelopePosition = Math.pow(Math.sin(phase), 2);
+        const lensWeight = envelopePosition * (1 - inclinationBlend * inclinationBlend);
+        const orbitTime = time * 0.65 / Math.pow(diskRadius / hole.radius, 1.4);
+        const flow = Math.sin(phase * 17 + seed.phase - orbitTime);
+        const turbulence = flow * Math.sin(phase * 7 - seed.phase + time * 0.18);
+        const height = projectedHeight + Math.max(0, archHeight(x, radius) - projectedHeight) * lensWeight;
+        const y = side * height * (1 + turbulence * 0.0025 * lensWeight);
+        return { x, y };
+      };
+      ctx.beginPath();
+      for (let j = 0; j <= 144; j += 1) {
+        const { x, y } = pointAt(j / 144 * Math.PI);
+        if (j === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      const warmth = band * band;
+      const alpha = (0.05 + envelope * 0.12) * (side < 0 ? 1 : 0.8) * Math.pow(1 - inclinationBlend, 1.4);
+      const color = `255,${Math.round(243 - warmth * 57)},${Math.round(201 - warmth * 94)}`;
+      const fade = ctx.createLinearGradient(-diskRadius, 0, diskRadius, 0);
+      fade.addColorStop(0, `rgba(${color},0)`);
+      fade.addColorStop(0.12, `rgba(${color},${alpha * 0.25})`);
+      fade.addColorStop(0.38, `rgba(${color},${alpha})`);
+      fade.addColorStop(0.62, `rgba(${color},${alpha})`);
+      fade.addColorStop(0.88, `rgba(${color},${alpha * 0.25})`);
+      fade.addColorStop(1, `rgba(${color},0)`);
+      ctx.strokeStyle = fade;
+      ctx.lineWidth = hole.radius * (0.014 + seed.weight * 0.008);
+      ctx.stroke();
+      // Advect luminous knots on the same curve as the steady emission.
+      // Keep the base light intact; rotating streaks only add energy.
+      const orbit = seed.phase + time * 0.65 / Math.pow(diskRadius / hole.radius, 1.4);
+      for (let knot = 0; knot < 3; knot += 1) {
+        const angle = orbit + knot * Math.PI * 2 / 3;
+        ctx.beginPath();
+        let drawing = false;
+        for (let step = 0; step <= 10; step += 1) {
+          const t = angle + step / 10 * (0.055 + seed.weight * 0.09);
+          if ((Math.sin(t) >= 0 ? 1 : -1) !== side) { drawing = false; continue; }
+          const phase = Math.acos(-Math.cos(t));
+          const { x, y } = pointAt(phase);
+          if (!drawing) { ctx.moveTo(x, y); drawing = true; } else ctx.lineTo(x, y);
         }
+        ctx.strokeStyle = `rgba(255,248,220,${0.24 * Math.pow(1 - inclinationBlend, 1.4)})`;
+        ctx.lineWidth = hole.radius * (0.003 + seed.weight * 0.003);
+        ctx.stroke();
       }
     }
     ctx.restore();
   }
 
-  function paintHorizon(hole, time) {
-    const corona = ctx.createRadialGradient(hole.x, hole.y, hole.radius * 0.72, hole.x, hole.y, hole.radius * 1.18);
-    corona.addColorStop(0, "rgba(0,0,0,1)");
-    corona.addColorStop(0.72, "rgba(0,0,0,1)");
-    corona.addColorStop(0.9, "rgba(38,25,11,.98)");
-    corona.addColorStop(0.965, "rgba(255,217,153,.72)");
-    corona.addColorStop(1, "rgba(99,207,216,0)");
-    ctx.fillStyle = corona;
-    ctx.beginPath();
-    ctx.arc(hole.x, hole.y, hole.radius * 1.2, 0, Math.PI * 2);
-    ctx.fill();
+  function paintDisk(hole, time, front) {
+    ctx.save();
+    ctx.translate(hole.x, hole.y);
+    ctx.rotate(hole.rotation);
+    ctx.globalCompositeOperation = "lighter";
+    // A luminous annulus uses the same inclination and depth split as its particles.
+    // Its central hole remains empty even when viewed from above.
+    ctx.save();
+    ctx.scale(1, hole.tilt);
+    for (let band = 0; band < 72; band += 1) {
+      const fraction = band / 71;
+      const radius = hole.radius * (1.18 + fraction * (hole.outer / hole.radius - 1.18));
+      const heat = Math.pow(1 - fraction, 2);
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, front ? 0 : Math.PI, front ? Math.PI : Math.PI * 2);
+      ctx.lineWidth = hole.radius * 0.038;
+      ctx.strokeStyle = `rgba(255,226,171,${(0.02 + heat * 0.15) * Math.min(2.6, 0.5 / Math.sqrt(hole.tilt))})`;
+      ctx.stroke();
+    }
+    ctx.restore();
+    const count = Math.round((width < 760 ? 550 : 780) * settings.density);
+    for (let i = 0; i < count; i += 1) {
+      const seed = seeds[i];
+      const radius = hole.radius * (1.18 + seed.band * (hole.outer / hole.radius - 1.18));
+      const angle = seed.phase + time * 0.65 / Math.pow(radius / hole.radius, 1.4);
+      const heat = Math.pow(1 - seed.band, 1.1);
+      // Curved short streaks follow the same disk projection at every point.
+      ctx.beginPath();
+      let drawing = false;
+      for (let j = 0; j <= 12; j += 1) {
+        const t = angle + j / 12 * (0.12 + seed.weight * 0.32);
+        if ((Math.sin(t) >= 0) !== front) { drawing = false; continue; }
+        const r = radius * (1 + 0.002 * Math.sin(t * 13 - time * 0.7 + seed.phase));
+        const x = Math.cos(t) * r;
+        const y = Math.sin(t) * r * hole.tilt + hole.radius * 0.003 * Math.sin(t * 9 + seed.phase);
+        if (!drawing) { ctx.moveTo(x, y); drawing = true; } else ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = `rgba(255,${Math.round(152 + heat * 98)},${Math.round(67 + heat * 153)},${(0.12 + heat * 0.7) * (0.75 + 0.25 * Math.cos(angle))})`;
+      ctx.lineWidth = hole.radius * (0.002 + heat * 0.004);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
 
-    ctx.fillStyle = "#000";
+  function paintHorizon(hole) {
+    ctx.save();
+    ctx.fillStyle = "#010305";
     ctx.beginPath();
-    ctx.arc(hole.x, hole.y, hole.radius * 0.86, 0, Math.PI * 2);
+    ctx.arc(hole.x, hole.y, hole.radius, 0, Math.PI * 2);
     ctx.fill();
+    // Two narrow, differently exposed images of the photon ring.
+    for (let i = 0; i < 2; i += 1) {
+      const rim = ctx.createLinearGradient(hole.x, hole.y - hole.radius, hole.x, hole.y + hole.radius);
+      rim.addColorStop(0, i ? "rgba(255,226,171,.3)" : "rgba(255,246,216,.9)");
+      rim.addColorStop(0.5, "rgba(255,222,155,.18)");
+      rim.addColorStop(1, i ? "rgba(255,221,158,.23)" : "rgba(255,241,202,.65)");
+      ctx.strokeStyle = rim;
+      ctx.lineWidth = hole.radius * (i ? 0.003 : 0.009);
+      ctx.beginPath();
+      ctx.arc(hole.x, hole.y, hole.radius * (1.018 + i * 0.05), 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
 
-    const angle = time * 0.24;
-    const flareX = hole.x + Math.cos(angle) * hole.radius * 0.93;
-    const flareY = hole.y + Math.sin(angle) * hole.radius * 0.93;
-    ctx.fillStyle = activeSignal ? "#ef5c68" : "rgba(217,222,229,.8)";
-    ctx.shadowColor = activeSignal ? "#ef5c68" : "#63cfd8";
-    ctx.shadowBlur = activeSignal ? 24 : 12;
-    ctx.beginPath();
-    ctx.arc(flareX, flareY, activeSignal ? 2.8 : 1.4, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.shadowBlur = 0;
+  function paintBlackHole(hole, time) {
+    if (!glowContext) return;
+    ctx.clearRect(0, 0, width, height);
+    paintDisk(hole, time, false);
+    paintArch(hole, time, -1);
+    paintArch(hole, time, 1);
+    paintHorizon(hole);
+    paintDisk(hole, time, true);
+    glowContext.clearRect(0, 0, emission.width, emission.height);
+    glowContext.drawImage(canvas, 0, 0, emission.width, emission.height);
+    ctx.clearRect(0, 0, width, height);
+    paintStars(hole, time);
+    ctx.drawImage(emission, 0, 0, width, height);
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    // Broad optical scatter, followed by a tighter bloom around hot gas.
+    for (const [blur, alpha] of [[hole.radius * 0.22, 0.55], [hole.radius * 0.065, 0.65], [2, 0.22]]) {
+      ctx.filter = `blur(${blur}px)`;
+      ctx.globalAlpha = alpha * (activeSignal ? 1.15 : 1);
+      ctx.drawImage(emission, 0, 0, width, height);
+    }
+    ctx.restore();
   }
 
   function draw(now, once = false) {
     const elapsed = Math.min(Math.max((now - previousTime) / 1000, 0), 0.05);
     previousTime = now;
-    timeScale += ((slow ? 0.07 : 1) - timeScale) * 0.08;
-    if (!reducedMotion.matches) simulationTime += elapsed * timeScale * settings.speed;
+    if (!reducedMotion.matches) simulationTime += elapsed * settings.speed;
     const time = reducedMotion.matches ? 3.8 : simulationTime;
     pointer.x += (pointer.targetX - pointer.x) * 0.032;
     pointer.y += (pointer.targetY - pointer.y) * 0.032;
     const hole = geometry();
 
     ctx.clearRect(0, 0, width, height);
-    paintStars(time);
-    paintDisk(hole, time, false);
-    paintLens(hole, time);
-    paintHorizon(hole, time);
-    paintDisk(hole, time, true);
+    paintBlackHole(hole, time);
 
     if (!once && !reducedMotion.matches && !document.hidden) frame = requestAnimationFrame(draw);
   }
@@ -209,6 +254,8 @@
     height = canvas.clientHeight;
     canvas.width = Math.round(width * dpr);
     canvas.height = Math.round(height * dpr);
+    emission.width = Math.round(width);
+    emission.height = Math.round(height);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     draw(performance.now(), true);
   }
@@ -227,26 +274,6 @@
   }, { passive: true });
   document.addEventListener("visibilitychange", startLoop);
   reducedMotion.addEventListener?.("change", startLoop);
-
-  function setSlow(value) {
-    slow = value;
-    observe?.setAttribute("aria-pressed", String(value));
-  }
-  if (observe) {
-    observe.hidden = reducedMotion.matches;
-    observe.addEventListener("click", () => setSlow(!slow));
-    reducedMotion.addEventListener("change", () => {
-      observe.hidden = reducedMotion.matches;
-      setSlow(false);
-    });
-  }
-  window.addEventListener("keydown", (event) => {
-    if (event.code !== "Space" || event.target.closest("input, button, a, textarea, select, [contenteditable]") || reducedMotion.matches) return;
-    event.preventDefault();
-    setSlow(true);
-  });
-  window.addEventListener("keyup", (event) => { if (event.code === "Space") setSlow(false); });
-  window.addEventListener("blur", () => setSlow(false));
 
   const controls = document.querySelector(".lab-controls");
   if (isLab && controls) {

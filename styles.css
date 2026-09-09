@@ -105,9 +105,6 @@ a { color: inherit; }
 }
 
 [hidden] { display: none !important; }
-.observe { position: absolute; z-index: 5; left: 7vw; bottom: 15%; background: #05070acc; color: var(--cyan); border: 1px solid #63cfd844; padding: .85rem 1rem; font: .7rem var(--mono); cursor: pointer; }
-.observe span { display: block; margin-top: .5rem; color: var(--muted); font-size: .55rem; letter-spacing: .15em; }
-.observe[aria-pressed="true"] { border-color: var(--coral); color: var(--white); }
 button:focus-visible, input:focus-visible { outline: 2px solid var(--cyan); outline-offset: 5px; }
 .portal a { position: relative; background: #05070ab8; }
 .portal a::before { content: ""; position: absolute; right: 100%; top: 50%; width: 3vw; height: 1px; background: linear-gradient(90deg, transparent, var(--cyan)); opacity: .25; transition: opacity .3s; }
@@ -125,14 +122,11 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--cyan); outl
 .entering .signal { transform: scale(2.4); filter: brightness(2); transition: transform .65s ease-in, filter .65s; transform-origin: 66% 51%; }
 .entering .wordmark-wrap, .entering .portal { opacity: 0; transition: opacity .4s; }
 @media (max-width: 760px) {
-  .home .observe { top: 30%; bottom: auto; left: 8vw; padding: .6rem; }
-  .observe span { display: none; }
   .portal__index a[data-signal="lab"] { grid-column: 1 / -1; }
   .lab .beacon { min-height: max(100svh, 860px); }
   .lab-heading { top: 3rem; }
   .lab-heading h1 { margin-top: 1.4rem; }
   .lab-controls { right: 6%; left: 6%; width: auto; bottom: 2rem; }
-  .lab .observe { bottom: 21rem; left: 6%; }
 }
 @media (prefers-reduced-motion: reduce) {
   .entering .signal { transform: none; filter: none; transition: none; }
