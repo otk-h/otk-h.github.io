@@ -7,7 +7,6 @@
 
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const links = [...document.querySelectorAll("[data-signal]")];
-  const pointer = { x: 0, y: 0, targetX: 0, targetY: 0 };
   let width = 0;
   let height = 0;
   let dpr = 1;
@@ -28,26 +27,44 @@
     return x - Math.floor(x);
   };
 
+  // Circular orbits around a dominant mass follow Kepler's r^(-3/2) law.
+  function orbitalRate(radius, hole) {
+    return 0.65 / Math.pow(radius / hole.radius, 1.5);
+  }
+
+  // A compact visual approximation of special-relativistic Doppler beaming.
+  // `tilt` is the projected minor/major axis ratio, so edge-on disks expose
+  // the strongest line-of-sight velocity and face-on disks remain symmetric.
+  function dopplerAt(angle, radius, hole) {
+    const lineOfSight = Math.sqrt(Math.max(0, 1 - hole.tilt * hole.tilt));
+    const beta = Math.min(0.58, 0.54 / Math.sqrt(radius / hole.radius));
+    const gamma = 1 / Math.sqrt(1 - beta * beta);
+    const delta = 1 / (gamma * (1 - beta * lineOfSight * Math.cos(angle)));
+    return Math.min(2.45, Math.max(0.38, Math.pow(delta, 3)));
+  }
+
   function geometry() {
     const mobile = width < 760;
     const radius = Math.min(width, height) * (mobile ? 0.19 : 0.175);
     return {
-      x: width * (mobile ? 0.5 : isLab ? 0.55 : 0.66) + pointer.x * 0.018,
-      y: height * (mobile ? 0.45 : 0.51) + pointer.y * 0.014,
+      x: width * (mobile ? 0.5 : isLab ? 0.55 : 0.66),
+      y: height * (mobile ? 0.45 : 0.51),
       radius,
       outer: radius * (mobile ? 2.6 : 3.25),
-      tilt: Math.min(0.88, Math.max(0.012, 0.008 + 2 * Math.pow(settings.angle, 3) + (isLab ? 0 : -pointer.y / Math.max(height, 1) * 0.65))),
-      rotation: -0.035 + pointer.x / Math.max(width, 1) * 0.025,
+      tilt: Math.min(0.88, Math.max(0.012, 0.008 + 2 * Math.pow(settings.angle, 3))),
+      rotation: -0.035,
     };
   }
 
   // Render an art-directed rear-disk lens image, not a general-relativity simulation.
   const emission = document.createElement("canvas");
   const archLayer = document.createElement("canvas");
+  const archFlowLayer = document.createElement("canvas");
   const starLayer = document.createElement("canvas");
   const bloomLayer = document.createElement("canvas");
   const emissionContext = emission.getContext("2d", { alpha: true });
   const archContext = archLayer.getContext("2d", { alpha: true });
+  const archFlowContext = archFlowLayer.getContext("2d", { alpha: true });
   const starContext = starLayer.getContext("2d", { alpha: true });
   const bloomContext = bloomLayer.getContext("2d", { alpha: true });
   const seeds = Array.from({ length: 1500 }, (_, i) => ({
@@ -106,11 +123,14 @@
     return height * Math.exp(-(ax - join) / falloff);
   }
 
-  function paintArch(hole, time, side) {
+  function paintArch(hole, time, side, mode = "all") {
     ctx.save();
     ctx.translate(hole.x, hole.y);
     ctx.rotate(hole.rotation);
-    ctx.globalCompositeOperation = "lighter";
+    // This is the lensed foreground image of the rear disk. Source-over makes
+    // the dense band optically solid instead of revealing the direct disk
+    // through it; its own luminous strands still blend inside the layer.
+    ctx.globalCompositeOperation = "source-over";
     // Overlapping soft strands fill the band, with no segmented angular grid.
     const count = 210;
     for (let i = 0; i < count; i += 1) {
@@ -128,35 +148,40 @@
         // The envelope and its derivative vanish at both ends: no detached shoulders.
         const envelopePosition = Math.pow(Math.sin(phase), 2);
         const lensWeight = envelopePosition * (1 - inclinationBlend * inclinationBlend);
-        const orbitTime = time * 0.65 / Math.pow(diskRadius / hole.radius, 1.4);
+        const orbitTime = time * orbitalRate(diskRadius, hole);
         const flow = Math.sin(phase * 17 + seed.phase - orbitTime);
         const turbulence = flow * Math.sin(phase * 7 - seed.phase + time * 0.18);
         const height = projectedHeight + Math.max(0, archHeight(x, radius) - projectedHeight) * lensWeight;
         const y = side * height * (1 + turbulence * 0.0025 * lensWeight);
         return { x, y };
       };
-      ctx.beginPath();
-      for (let j = 0; j <= 96; j += 1) {
-        const { x, y } = pointAt(j / 96 * Math.PI);
-        if (j === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-      }
       const warmth = band * band;
       const alpha = (0.05 + envelope * 0.12) * (side < 0 ? 1 : 0.8) * Math.pow(1 - inclinationBlend, 1.4);
       const color = `255,${Math.round(243 - warmth * 57)},${Math.round(201 - warmth * 94)}`;
-      const fade = ctx.createLinearGradient(-diskRadius, 0, diskRadius, 0);
-      fade.addColorStop(0, `rgba(${color},0)`);
-      fade.addColorStop(0.12, `rgba(${color},${alpha * 0.25})`);
-      fade.addColorStop(0.38, `rgba(${color},${alpha})`);
-      fade.addColorStop(0.62, `rgba(${color},${alpha})`);
-      fade.addColorStop(0.88, `rgba(${color},${alpha * 0.25})`);
-      fade.addColorStop(1, `rgba(${color},0)`);
-      ctx.strokeStyle = fade;
-      ctx.lineWidth = hole.radius * (0.014 + seed.weight * 0.008);
-      ctx.stroke();
+      if (mode !== "flow") {
+        ctx.beginPath();
+        for (let j = 0; j <= 96; j += 1) {
+          const { x, y } = pointAt(j / 96 * Math.PI);
+          if (j === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        const receding = dopplerAt(Math.PI, diskRadius, hole);
+        const approaching = dopplerAt(0, diskRadius, hole);
+        const fade = ctx.createLinearGradient(-diskRadius, 0, diskRadius, 0);
+        fade.addColorStop(0, `rgba(${color},0)`);
+        fade.addColorStop(0.12, `rgba(${color},${alpha * 0.25 * receding})`);
+        fade.addColorStop(0.38, `rgba(${color},${alpha * receding})`);
+        fade.addColorStop(0.62, `rgba(${color},${alpha * approaching})`);
+        fade.addColorStop(0.88, `rgba(${color},${alpha * 0.25 * approaching})`);
+        fade.addColorStop(1, `rgba(${color},0)`);
+        ctx.strokeStyle = fade;
+        ctx.lineWidth = hole.radius * (0.014 + seed.weight * 0.008);
+        ctx.stroke();
+      }
+      ctx.globalCompositeOperation = "lighter";
       // Advect luminous knots on the same curve as the steady emission.
       // Keep the base light intact; rotating streaks only add energy.
-      const orbit = seed.phase + time * 0.65 / Math.pow(diskRadius / hole.radius, 1.4);
-      for (let knot = 0; knot < 3; knot += 1) {
+      const orbit = seed.phase + time * orbitalRate(diskRadius, hole);
+      for (let knot = 0; mode !== "base" && knot < 3; knot += 1) {
         const angle = orbit + knot * Math.PI * 2 / 3;
         ctx.beginPath();
         let drawing = false;
@@ -171,6 +196,7 @@
         ctx.lineWidth = hole.radius * (0.003 + seed.weight * 0.003);
         ctx.stroke();
       }
+      ctx.globalCompositeOperation = "source-over";
     }
     ctx.restore();
   }
@@ -188,10 +214,17 @@
       const fraction = band / 71;
       const radius = hole.radius * (1.18 + fraction * (hole.outer / hole.radius - 1.18));
       const heat = Math.pow(1 - fraction, 2);
+      const receding = dopplerAt(Math.PI, radius, hole);
+      const approaching = dopplerAt(0, radius, hole);
       ctx.beginPath();
       ctx.arc(0, 0, radius, front ? 0 : Math.PI, front ? Math.PI : Math.PI * 2);
       ctx.lineWidth = hole.radius * 0.038;
-      ctx.strokeStyle = `rgba(255,226,171,${(0.02 + heat * 0.15) * Math.min(2.6, 0.5 / Math.sqrt(hole.tilt))})`;
+      const diskFade = ctx.createLinearGradient(-radius, 0, radius, 0);
+      const baseAlpha = (0.02 + heat * 0.15) * Math.min(2.6, 0.5 / Math.sqrt(hole.tilt));
+      diskFade.addColorStop(0, `rgba(255,188,112,${baseAlpha * receding})`);
+      diskFade.addColorStop(0.48, `rgba(255,226,171,${baseAlpha})`);
+      diskFade.addColorStop(1, `rgba(255,248,224,${baseAlpha * approaching})`);
+      ctx.strokeStyle = diskFade;
       ctx.stroke();
     }
     ctx.restore();
@@ -199,8 +232,9 @@
     for (let i = 0; i < count; i += 1) {
       const seed = seeds[i];
       const radius = hole.radius * (1.18 + seed.band * (hole.outer / hole.radius - 1.18));
-      const angle = seed.phase + time * 0.65 / Math.pow(radius / hole.radius, 1.4);
+      const angle = seed.phase + time * orbitalRate(radius, hole);
       const heat = Math.pow(1 - seed.band, 1.1);
+      const beaming = dopplerAt(angle, radius, hole);
       // Curved short streaks follow the same disk projection at every point.
       ctx.beginPath();
       let drawing = false;
@@ -212,7 +246,10 @@
         const y = Math.sin(t) * r * hole.tilt + hole.radius * 0.003 * Math.sin(t * 9 + seed.phase);
         if (!drawing) { ctx.moveTo(x, y); drawing = true; } else ctx.lineTo(x, y);
       }
-      ctx.strokeStyle = `rgba(255,${Math.round(152 + heat * 98)},${Math.round(67 + heat * 153)},${(0.12 + heat * 0.7) * (0.75 + 0.25 * Math.cos(angle))})`;
+      const blueShift = Math.max(0, Math.min(1, (beaming - 0.8) / 0.8));
+      const green = Math.round(152 + heat * 98 + (255 - (152 + heat * 98)) * blueShift * 0.55);
+      const blue = Math.round(67 + heat * 153 + (245 - (67 + heat * 153)) * blueShift * 0.7);
+      ctx.strokeStyle = `rgba(255,${green},${blue},${Math.min(1, (0.12 + heat * 0.7) * beaming)})`;
       ctx.lineWidth = hole.radius * (0.002 + heat * 0.004);
       ctx.stroke();
     }
@@ -225,16 +262,20 @@
     ctx.beginPath();
     ctx.arc(hole.x, hole.y, hole.radius, 0, Math.PI * 2);
     ctx.fill();
-    // Two narrow, differently exposed images of the photon ring.
-    for (let i = 0; i < 2; i += 1) {
+    // Successive photon images accumulate exponentially toward the shadow.
+    // Each additional orbit is thinner and fainter than the previous one.
+    ctx.globalCompositeOperation = "lighter";
+    for (let i = 0; i < 4; i += 1) {
+      const separation = 0.009 + 0.074 * Math.exp(-i * 1.05);
+      const exposure = Math.exp(-i * 0.72);
       const rim = ctx.createLinearGradient(hole.x, hole.y - hole.radius, hole.x, hole.y + hole.radius);
-      rim.addColorStop(0, i ? "rgba(255,226,171,.3)" : "rgba(255,246,216,.9)");
-      rim.addColorStop(0.5, "rgba(255,222,155,.18)");
-      rim.addColorStop(1, i ? "rgba(255,221,158,.23)" : "rgba(255,241,202,.65)");
+      rim.addColorStop(0, `rgba(255,249,228,${0.9 * exposure})`);
+      rim.addColorStop(0.5, `rgba(255,222,155,${0.2 * exposure})`);
+      rim.addColorStop(1, `rgba(255,241,202,${0.65 * exposure})`);
       ctx.strokeStyle = rim;
-      ctx.lineWidth = hole.radius * (i ? 0.003 : 0.009);
+      ctx.lineWidth = hole.radius * (0.009 * Math.exp(-i * 0.48));
       ctx.beginPath();
-      ctx.arc(hole.x, hole.y, hole.radius * (1.018 + i * 0.05), 0, Math.PI * 2);
+      ctx.arc(hole.x, hole.y, hole.radius * (1 + separation), 0, Math.PI * 2);
       ctx.stroke();
     }
     ctx.restore();
@@ -250,8 +291,17 @@
     if (!archContext) return;
     clearLayer(archContext);
     withContext(archContext, () => {
-      paintArch(hole, time, -1);
-      paintArch(hole, time, 1);
+      paintArch(hole, time, -1, "base");
+      paintArch(hole, time, 1, "base");
+    });
+  }
+
+  function updateArchFlow(hole, time) {
+    if (!archFlowContext) return;
+    clearLayer(archFlowContext);
+    withContext(archFlowContext, () => {
+      paintArch(hole, time, -1, "flow");
+      paintArch(hole, time, 1, "flow");
     });
   }
 
@@ -270,19 +320,44 @@
     bloomContext.restore();
   }
 
+  function compositeLensedBand(hole) {
+    ctx.save();
+    // The lensed band surrounds the shadow but never paints inside it. The
+    // even-odd clip preserves a mathematically circular event horizon while
+    // allowing the direct front half of the disk to cross in front of it.
+    ctx.beginPath();
+    ctx.rect(0, 0, width, height);
+    ctx.arc(hole.x, hole.y, hole.radius * 1.002, 0, Math.PI * 2);
+    ctx.clip("evenodd");
+
+    // Build an optically solid foreground from the same lensed image before
+    // adding its moving highlights. Repeated source-over compositing closes
+    // translucent gaps without changing the band's hue or reducing brightness.
+    ctx.globalCompositeOperation = "source-over";
+    for (let pass = 0; pass < 3; pass += 1) {
+      ctx.drawImage(archLayer, 0, 0, archLayer.width, archLayer.height, 0, 0, width, height);
+    }
+    ctx.globalCompositeOperation = "lighter";
+    ctx.drawImage(archFlowLayer, 0, 0, archFlowLayer.width, archFlowLayer.height, 0, 0, width, height);
+    ctx.restore();
+  }
+
   function paintBlackHole(hole, time) {
-    if (!emissionContext || !archContext || !starContext || !bloomContext) return;
-    if (layersDirty || renderedFrames % 3 === 0) updateArch(hole, time);
+    if (!emissionContext || !archContext || !archFlowContext || !starContext || !bloomContext) return;
+    if (layersDirty || renderedFrames % 12 === 0) updateArch(hole, time);
+    updateArchFlow(hole, time);
     if (layersDirty || renderedFrames % 12 === 0) updateStars(hole, time);
 
     clearLayer(emissionContext);
     withContext(emissionContext, () => {
+      // Rear disk -> opaque shadow -> front disk is the direct view. The
+      // lensed image is composited last, so it wins wherever the two overlap.
       paintDisk(hole, time, false);
-      ctx.drawImage(archLayer, 0, 0, archLayer.width, archLayer.height, 0, 0, width, height);
       paintHorizon(hole);
       paintDisk(hole, time, true);
+      compositeLensedBand(hole);
     });
-    if (layersDirty || renderedFrames % 3 === 0) updateBloom(hole);
+    if (layersDirty || renderedFrames % 2 === 0) updateBloom(hole);
 
     ctx.clearRect(0, 0, width, height);
     ctx.drawImage(starLayer, 0, 0, starLayer.width, starLayer.height, 0, 0, width, height);
@@ -295,7 +370,7 @@
   }
 
   function draw(now, once = false) {
-    if (!once && now - previousFrameTime < 1000 / 30) {
+    if (!once && now - previousFrameTime < 1000 / 45) {
       frame = requestAnimationFrame(draw);
       return;
     }
@@ -305,8 +380,6 @@
     previousFrameTime = now;
     if (!reducedMotion.matches) simulationTime += elapsed * settings.speed;
     const time = reducedMotion.matches ? 3.8 : simulationTime;
-    pointer.x += (pointer.targetX - pointer.x) * 0.032;
-    pointer.y += (pointer.targetY - pointer.y) * 0.032;
     const hole = geometry();
 
     ctx.clearRect(0, 0, width, height);
@@ -326,6 +399,7 @@
   function resizeLayers() {
     sizeLayer(emission, renderScale);
     sizeLayer(archLayer, renderScale);
+    sizeLayer(archFlowLayer, renderScale);
     sizeLayer(starLayer, Math.min(1, renderScale));
     sizeLayer(bloomLayer, 0.38);
     layersDirty = true;
@@ -350,11 +424,6 @@
   }
 
   window.addEventListener("resize", resize);
-  window.addEventListener("pointermove", (event) => {
-    pointer.targetX = event.clientX - width / 2;
-    pointer.targetY = event.clientY - height / 2;
-    if (reducedMotion.matches) draw(performance.now(), true);
-  }, { passive: true });
   document.addEventListener("visibilitychange", startLoop);
   reducedMotion.addEventListener?.("change", startLoop);
 
