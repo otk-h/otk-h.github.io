@@ -11,7 +11,6 @@
   let height = 0;
   let dpr = 1;
   let frame = 0;
-  let activeSignal = "";
   let previousTime = performance.now();
   let previousFrameTime = 0;
   let simulationTime = 3.8;
@@ -26,6 +25,11 @@
     const x = Math.sin(value * 127.1) * 43758.5453;
     return x - Math.floor(x);
   };
+
+  function smoothstep(edge0, edge1, value) {
+    const x = Math.min(1, Math.max(0, (value - edge0) / (edge1 - edge0)));
+    return x * x * (3 - 2 * x);
+  }
 
   // Circular orbits around a dominant mass follow Kepler's r^(-3/2) law.
   function orbitalRate(radius, hole) {
@@ -133,12 +137,16 @@
     ctx.globalCompositeOperation = "source-over";
     // Overlapping soft strands fill the band, with no segmented angular grid.
     const count = 210;
+    const flowPaths = mode === "flow" ? Array.from({ length: 4 }, () => new Path2D()) : null;
     for (let i = 0; i < count; i += 1) {
       const seed = seeds[i];
       const band = seed.band;
       const radius = hole.radius * (1.008 + band * (side < 0 ? 0.542 : 0.452));
       const diskRadius = hole.radius * (1.18 + band * (hole.outer / hole.radius - 1.18));
-      const inclinationBlend = Math.min(1, hole.tilt / 0.7);
+      const viewBlend = smoothstep(0.025, 0.82, hole.tilt);
+      // Lensing does not switch off at steep views: the upper/lower image
+      // continuously contracts into the projected annulus instead.
+      const lensStrength = 1 - viewBlend * 0.76;
       const envelope = Math.pow(Math.sin(Math.PI * band), 0.45);
       const heat = 1 - band;
       const pointAt = (phase) => {
@@ -147,7 +155,7 @@
         // Smoothly join the lensed image to the very same projected disk orbit.
         // The envelope and its derivative vanish at both ends: no detached shoulders.
         const envelopePosition = Math.pow(Math.sin(phase), 2);
-        const lensWeight = envelopePosition * (1 - inclinationBlend * inclinationBlend);
+        const lensWeight = envelopePosition * lensStrength;
         const orbitTime = time * orbitalRate(diskRadius, hole);
         const flow = Math.sin(phase * 17 + seed.phase - orbitTime);
         const turbulence = flow * Math.sin(phase * 7 - seed.phase + time * 0.18);
@@ -156,7 +164,8 @@
         return { x, y };
       };
       const warmth = band * band;
-      const alpha = (0.05 + envelope * 0.12) * (side < 0 ? 1 : 0.8) * Math.pow(1 - inclinationBlend, 1.4);
+      const viewExposure = 0.62 + lensStrength * 0.38;
+      const alpha = (0.05 + envelope * 0.12) * (side < 0 ? 1 : 0.8) * viewExposure;
       const color = `255,${Math.round(243 - warmth * 57)},${Math.round(201 - warmth * 94)}`;
       if (mode !== "flow") {
         ctx.beginPath();
@@ -183,20 +192,36 @@
       const orbit = seed.phase + time * orbitalRate(diskRadius, hole);
       for (let knot = 0; mode !== "base" && knot < 3; knot += 1) {
         const angle = orbit + knot * Math.PI * 2 / 3;
-        ctx.beginPath();
+        const flowPath = flowPaths?.[Math.min(3, Math.floor(seed.weight * 4))];
+        if (!flowPath) ctx.beginPath();
         let drawing = false;
         for (let step = 0; step <= 7; step += 1) {
           const t = angle + step / 7 * (0.055 + seed.weight * 0.09);
           if ((Math.sin(t) >= 0 ? 1 : -1) !== side) { drawing = false; continue; }
           const phase = Math.acos(-Math.cos(t));
           const { x, y } = pointAt(phase);
-          if (!drawing) { ctx.moveTo(x, y); drawing = true; } else ctx.lineTo(x, y);
+          if (!drawing) {
+            (flowPath || ctx).moveTo(x, y);
+            drawing = true;
+          } else {
+            (flowPath || ctx).lineTo(x, y);
+          }
         }
-        ctx.strokeStyle = `rgba(255,248,220,${0.24 * Math.pow(1 - inclinationBlend, 1.4)})`;
-        ctx.lineWidth = hole.radius * (0.003 + seed.weight * 0.003);
-        ctx.stroke();
+        if (!flowPath) {
+          ctx.strokeStyle = `rgba(255,248,220,${0.24 * viewExposure})`;
+          ctx.lineWidth = hole.radius * (0.003 + seed.weight * 0.003);
+          ctx.stroke();
+        }
       }
       ctx.globalCompositeOperation = "source-over";
+    }
+    if (flowPaths) {
+      ctx.globalCompositeOperation = "lighter";
+      for (let bucket = 0; bucket < flowPaths.length; bucket += 1) {
+        ctx.strokeStyle = "rgba(255,248,220,.24)";
+        ctx.lineWidth = hole.radius * (0.003 + (bucket + 0.5) / 4 * 0.003);
+        ctx.stroke(flowPaths[bucket]);
+      }
     }
     ctx.restore();
   }
@@ -220,7 +245,9 @@
       ctx.arc(0, 0, radius, front ? 0 : Math.PI, front ? Math.PI : Math.PI * 2);
       ctx.lineWidth = hole.radius * 0.038;
       const diskFade = ctx.createLinearGradient(-radius, 0, radius, 0);
-      const baseAlpha = (0.02 + heat * 0.15) * Math.min(2.6, 0.5 / Math.sqrt(hole.tilt));
+      // Surface brightness remains stable with inclination; only its projected
+      // area changes. This prevents the ring from collapsing into darkness.
+      const baseAlpha = (0.02 + heat * 0.15) * 1.85;
       diskFade.addColorStop(0, `rgba(255,188,112,${baseAlpha * receding})`);
       diskFade.addColorStop(0.48, `rgba(255,226,171,${baseAlpha})`);
       diskFade.addColorStop(1, `rgba(255,248,224,${baseAlpha * approaching})`);
@@ -229,6 +256,12 @@
     }
     ctx.restore();
     const count = Math.round((width < 760 ? 550 : 780) * settings.density);
+    // Group visually equivalent streaks into a small number of canvas paths.
+    // This keeps the same particles and trajectories while replacing hundreds
+    // of individual stroke calls with a few GPU-friendly batches.
+    const heatBuckets = 8;
+    const beamBuckets = 6;
+    const particlePaths = Array.from({ length: heatBuckets * beamBuckets }, () => new Path2D());
     for (let i = 0; i < count; i += 1) {
       const seed = seeds[i];
       const radius = hole.radius * (1.18 + seed.band * (hole.outer / hole.radius - 1.18));
@@ -236,7 +269,10 @@
       const heat = Math.pow(1 - seed.band, 1.1);
       const beaming = dopplerAt(angle, radius, hole);
       // Curved short streaks follow the same disk projection at every point.
-      ctx.beginPath();
+      const heatBucket = Math.min(heatBuckets - 1, Math.floor(heat * heatBuckets));
+      const normalizedBeam = (beaming - 0.38) / (2.45 - 0.38);
+      const beamBucket = Math.min(beamBuckets - 1, Math.max(0, Math.floor(normalizedBeam * beamBuckets)));
+      const particlePath = particlePaths[heatBucket * beamBuckets + beamBucket];
       let drawing = false;
       for (let j = 0; j <= 8; j += 1) {
         const t = angle + j / 8 * (0.12 + seed.weight * 0.32);
@@ -244,14 +280,20 @@
         const r = radius * (1 + 0.002 * Math.sin(t * 13 - time * 0.7 + seed.phase));
         const x = Math.cos(t) * r;
         const y = Math.sin(t) * r * hole.tilt + hole.radius * 0.003 * Math.sin(t * 9 + seed.phase);
-        if (!drawing) { ctx.moveTo(x, y); drawing = true; } else ctx.lineTo(x, y);
+        if (!drawing) { particlePath.moveTo(x, y); drawing = true; } else particlePath.lineTo(x, y);
       }
-      const blueShift = Math.max(0, Math.min(1, (beaming - 0.8) / 0.8));
-      const green = Math.round(152 + heat * 98 + (255 - (152 + heat * 98)) * blueShift * 0.55);
-      const blue = Math.round(67 + heat * 153 + (245 - (67 + heat * 153)) * blueShift * 0.7);
-      ctx.strokeStyle = `rgba(255,${green},${blue},${Math.min(1, (0.12 + heat * 0.7) * beaming)})`;
-      ctx.lineWidth = hole.radius * (0.002 + heat * 0.004);
-      ctx.stroke();
+    }
+    for (let heatBucket = 0; heatBucket < heatBuckets; heatBucket += 1) {
+      const heat = (heatBucket + 0.5) / heatBuckets;
+      for (let beamBucket = 0; beamBucket < beamBuckets; beamBucket += 1) {
+        const beaming = 0.38 + (beamBucket + 0.5) / beamBuckets * (2.45 - 0.38);
+        const blueShift = Math.max(0, Math.min(1, (beaming - 0.8) / 0.8));
+        const green = Math.round(152 + heat * 98 + (255 - (152 + heat * 98)) * blueShift * 0.55);
+        const blue = Math.round(67 + heat * 153 + (245 - (67 + heat * 153)) * blueShift * 0.7);
+        ctx.strokeStyle = `rgba(255,${green},${blue},${Math.min(1, (0.12 + heat * 0.7) * beaming)})`;
+        ctx.lineWidth = hole.radius * (0.002 + heat * 0.004);
+        ctx.stroke(particlePaths[heatBucket * beamBuckets + beamBucket]);
+      }
     }
     ctx.restore();
   }
@@ -314,7 +356,7 @@
     bloomContext.globalCompositeOperation = "screen";
     for (const [blur, alpha] of [[hole.radius * 0.22, 0.55], [hole.radius * 0.065, 0.65], [2, 0.22]]) {
       bloomContext.filter = `blur(${Math.max(1, blur * scale)}px)`;
-      bloomContext.globalAlpha = alpha * (activeSignal ? 1.15 : 1);
+      bloomContext.globalAlpha = alpha;
       bloomContext.drawImage(emission, 0, 0, bloomLayer.width, bloomLayer.height);
     }
     bloomContext.restore();
@@ -452,8 +494,8 @@
   window.addEventListener("pageshow", () => document.body.classList.remove("entering"));
 
   links.forEach((link) => {
-    const activate = () => { activeSignal = link.dataset.signal || ""; link.dataset.active = "true"; };
-    const deactivate = () => { activeSignal = ""; delete link.dataset.active; };
+    const activate = () => { link.dataset.active = "true"; };
+    const deactivate = () => { delete link.dataset.active; };
     link.addEventListener("mouseenter", activate);
     link.addEventListener("mouseleave", deactivate);
     link.addEventListener("focus", activate);
